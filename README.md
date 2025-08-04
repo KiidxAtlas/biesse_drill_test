@@ -204,7 +204,7 @@ Each generation provides:
 ```
 drill_cix_generator/
 ├── main.py              # Main execution script
-├── config.py            # Configuration management  
+├── config.py            # Configuration management
 ├── cix_generator.py     # Core CIX generation logic
 ├── R3_tools.xml         # Primary tool configuration
 ├── toolsR1.xml          # Alternative tool set 1
