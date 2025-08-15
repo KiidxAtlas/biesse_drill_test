@@ -16,8 +16,8 @@
   <Spindle Name="T13" Child="D5MM70" SymmetricSpindle="T13" DeflectorTooled="" />
   <Spindle Name="T14" Child="D5MM70" SymmetricSpindle="T14" DeflectorTooled="" />
   <Spindle Name="T15" Child="D8MM70" SymmetricSpindle="T15" DeflectorTooled="" />
-  <Spindle Name="T16" Child="D5MM70" SymmetricSpindle="T16" DeflectorTooled="" />
-  <Spindle Name="T17" Child="D8MM70" SymmetricSpindle="T17" DeflectorTooled="" />
+  <Spindle Name="T16" Child="" SymmetricSpindle="T16" DeflectorTooled="" />
+  <Spindle Name="T17" Child="" SymmetricSpindle="T17" DeflectorTooled="" />
   <Spindle Name="T18" Child="D2MM70" SymmetricSpindle="T25" DeflectorTooled="" />
   <Spindle Name="T19" Child="D1_4IN70" SymmetricSpindle="T24" DeflectorTooled="" />
   <Spindle Name="T20" Child="D6MM70" SymmetricSpindle="T23" DeflectorTooled="" />

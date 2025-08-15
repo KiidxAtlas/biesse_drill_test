@@ -1,0 +1,48 @@
+{
+  // Reduce context menu clutter
+  "explorer.experimental.fileNesting.enabled": false,
+  "explorer.compactFolders": false,
+
+  // Hide specific context menu items
+  "workbench.editor.showTabs": "multiple",
+
+  // Disable some extensions' context menu contributions
+  "git.enabled": true,
+  "git.decorations.enabled": false,
+
+  // Reduce editor context menu items
+"editor.contextmenu": true,
+
+  // Minimize breadcrumbs context menu
+  "breadcrumbs.enabled": true,
+
+  // Reduce terminal context menu
+  "terminal.integrated.rightClickBehavior": "default",
+
+  // Hide some file explorer context menu items
+  "explorer.confirmDelete": false,
+  "explorer.confirmDragAndDrop": false,
+
+  // Reduce suggestion widget clutter
+  "editor.suggest.showWords": false,
+  "editor.suggest.showSnippets": true,
+  "editor.suggest.showKeywords": true,
+
+  // Hide some editor actions
+  "editor.minimap.enabled": false,
+  "editor.folding": true,
+  "editor.glyphMargin": false,
+
+  // Simplify command palette
+  "workbench.commandPalette.history": 10,
+
+  // Hide some status bar items
+  "problems.showCurrentInStatus": false,
+
+  // Reduce IntelliSense context menu
+  "editor.quickSuggestions": {
+    "other": true,
+    "comments": false,
+    "strings": false
+  }
+}

@@ -10,17 +10,21 @@ from typing import Dict, List
 class DrillTestConfig:
     """Configuration class for drill test generation."""
 
+    #TODO
+    depth_limits_by_diameter: Dict[float, float]
+
     def __init__(self):
         # Default drill test parameters
         self.start_x = 0.0
         self.start_y = 0.0
         self.x_spacing = 32.0
         self.y_spacing = 50.0
-        self.depth = 15.0
+        self.depth = 19
+        self.panel_thickness = 19.0  # LPZ in CIX (mm)
         self.output_file = "R3_Drill_Test.cix"
 
         # Tool configuration file path
-        self.tool_xml_file = "R3_tools.xml"  # Default to R3 tools
+        self.tool_xml_file = "r3_spindle_tooling.xml"  # Default to R1 tools
 
         # Test parameters
         self.test_all_tools = False  # If True, test all available tools
@@ -44,13 +48,18 @@ class DrillTestConfig:
         # Machining parameters
         self.engraving_tool_name = "V45D22MM"  # Tool name for engraving operations
         self.engraving_depth = 0.2  # Engraving depth (mm)
-        self.drill_speed = 8000  # RPM for drilling operations
-        self.engraving_speed = 12000  # RPM for engraving operations
-        self.feed_rate = 1000  # Feed rate (mm/min)
+        self.drill_speed = 0  # RPM for drilling operations
+        self.engraving_speed = 0  # RPM for engraving operations
+        self.feed_rate = 0  # Feed rate (mm/min)
 
         # File naming
         self.auto_timestamp = True  # Add timestamp to filename
         self.timestamp_format = "%m_%d_%Y"  # MM_DD_YYYY format
+
+        # Per-diameter depth limits: diameter(mm) -> max depth(mm)
+        # Default rule: 2mm diameter drills can only go 2mm deep
+        self.depth_limits_by_diameter = {2.0: 2.0}
+
 
     def set_tool_xml_file(self, filename: str) -> None:
         """Set the XML file to read tool information from."""
@@ -77,6 +86,54 @@ class DrillTestConfig:
         if depth <= 0:
             raise ValueError("Drill depth must be positive")
         self.depth = depth
+
+    def set_max_depth_for_diameter(self, diameter: float, max_depth: float) -> None:
+        """
+        Set a maximum drill depth for a specific tool diameter (in mm).
+
+        The effective drill depth used will be min(global depth, per-diameter max).
+        """
+        if diameter <= 0:
+            raise ValueError("Diameter must be positive")
+        if max_depth <= 0:
+            raise ValueError("Max depth must be positive")
+        if max_depth > self.max_depth:
+            raise ValueError(
+                f"Per-diameter max depth cannot exceed global max depth {self.max_depth}mm"
+            )
+        self.depth_limits_by_diameter[float(diameter)] = float(max_depth)
+
+    def clear_depth_limit_for_diameter(self, diameter: float) -> None:
+        """Remove a per-diameter depth limit if present."""
+        self.depth_limits_by_diameter.pop(float(diameter), None)
+
+    def get_effective_drill_depth(self, diameter: float) -> float:
+        """
+        Get the effective drill depth for a given diameter, honoring per-diameter limits.
+
+        Returns the minimum of the global depth and the configured limit for the
+        closest matching diameter key (within a small tolerance), if any.
+        """
+        # Exact match first
+        limit = self.depth_limits_by_diameter.get(float(diameter))
+        if limit is not None:
+            return min(self.depth, limit)
+
+        # Fuzzy match within 0.1mm to be robust to parsing
+        for d_key, d_limit in self.depth_limits_by_diameter.items():
+            if abs(d_key - float(diameter)) <= 0.1:
+                return min(self.depth, d_limit)
+
+        return self.depth
+
+    def set_panel_thickness(self, thickness: float) -> None:
+        """Set the panel thickness (LPZ) in mm."""
+        if thickness <= 0:
+            raise ValueError("Panel thickness must be positive")
+        if thickness > 1000:
+            # Guard against obviously invalid values
+            raise ValueError("Panel thickness is unreasonably large")
+        self.panel_thickness = float(thickness)
 
     def set_custom_tools(self, tool_config: Dict[float, List[int]]) -> None:
         """
@@ -228,6 +285,20 @@ class DrillTestConfig:
                         f"Too many spindles for diameter {diameter}: {len(spindles)} > {self.max_holes_per_row}"
                     )
 
+        if self.panel_thickness <= 0:
+            errors.append("Panel thickness must be positive")
+
+        # Validate per-diameter depth limits
+        for d_key, d_lim in self.depth_limits_by_diameter.items():
+            if d_key <= 0:
+                errors.append(f"Invalid diameter for depth limit: {d_key}")
+            if d_lim <= 0:
+                errors.append(f"Invalid max depth for diameter {d_key}: {d_lim}")
+            if d_lim > self.max_depth:
+                errors.append(
+                    f"Max depth for diameter {d_key} exceeds global max ({d_lim} > {self.max_depth})"
+                )
+
         return errors
 
     def to_dict(self) -> Dict:
@@ -238,6 +309,7 @@ class DrillTestConfig:
             "x_spacing": self.x_spacing,
             "y_spacing": self.y_spacing,
             "depth": self.depth,
+            "panel_thickness": self.panel_thickness,
             "output_file": self.output_file,
             "tool_xml_file": self.tool_xml_file,
             "test_all_tools": self.test_all_tools,
@@ -246,6 +318,7 @@ class DrillTestConfig:
             "units": self.units,
             "author": self.author,
             "description": self.description,
+            "depth_limits_by_diameter": self.depth_limits_by_diameter,
         }
 
     def __str__(self) -> str:
@@ -260,6 +333,7 @@ class DrillTestConfig:
   Start Position: ({self.start_x}, {self.start_y})
   Spacing: X={self.x_spacing}, Y={self.y_spacing}
   Drill Depth: {self.depth}mm
+    Panel Thickness (LPZ): {self.panel_thickness}mm
   Output File: {self.get_output_filename()}
   Test All Tools: {self.test_all_tools}
   Custom Tools: {self.custom_tool_config is not None}
@@ -301,8 +375,8 @@ example_configs = {
     "all_available": {
         "description": "Test all available tools from XML",
         "test_all_tools": True,
-        "spacing": (40.0, 60.0),
-        "depth": 15.0,
+    "spacing": (40.0, 60.0),
+    "depth": 19.0,
     },
 }
 

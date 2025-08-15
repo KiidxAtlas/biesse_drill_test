@@ -237,30 +237,29 @@ class CIXGenerator:
         return (final_min_x, final_min_y, final_max_x, final_max_y)
 
     def _generate_cix_content(self, tool_config: Dict[float, List[int]]) -> str:
-        """Generate the actual CIX content with CID3 format, matching R3 reference file exactly."""
-        lines = []
+        """Generate CIX content (CID3) using current config and tools."""
+        lines: List[str] = []
 
-        # Calculate panel size if auto-sizing is enabled
+        # Panel size
         if self.config.auto_size_panel:
             min_x, min_y, max_x, max_y = self._calculate_layout_bounds(tool_config)
             panel_width = max_x - min_x + (2 * self.config.panel_margin)
             panel_height = max_y - min_y + (2 * self.config.panel_margin)
         else:
-            # Use manual panel size if set, otherwise use defaults
             panel_width = getattr(self.config, "manual_panel_width", 438.0)
             panel_height = getattr(self.config, "manual_panel_height", 640.0)
 
-        # CID3 Header - match reference format
+        # Header
         lines.append("BEGIN ID CID3")
         lines.append("\tREL= 5.0")
         lines.append("END ID")
         lines.append(" ")
 
-        # Main Data Section - match reference exactly
+        # MAINDATA with panel thickness (LPZ)
         lines.append("BEGIN MAINDATA")
         lines.append(f"\tLPX={panel_width}")
         lines.append(f"\tLPY={panel_height}")
-        lines.append("\tLPZ=19")
+        lines.append(f"\tLPZ={self.config.panel_thickness}")
         lines.append('\tORLST="1"')
         lines.append("\tSIMMETRY=1")
         lines.append("\tTLCHK=0")
@@ -289,63 +288,40 @@ class CIXGenerator:
         lines.append("END MAINDATA")
         lines.append("")
 
-        if not tool_config:
-            raise ValueError("No spindles configured for drilling")
-
-        # Sort diameters for consistent ordering
+        # Layout drill positions
         sorted_diameters = sorted(tool_config.keys())
-
-        # Calculate all drill positions first
-        drill_positions = []
-        current_y = 20.0  # Start Y like reference
-        max_x_extent = 20.0  # Track the furthest X position
-
+        drill_positions: List[Dict] = []
+        current_y = 20.0
+        max_x_extent = 20.0
         for diameter in sorted_diameters:
             spindles = tool_config[diameter]
-            current_x = 20.0  # Start X like reference
-
+            current_x = 20.0
             for spindle_id in spindles:
-                drill_positions.append(
-                    {
-                        "diameter": diameter,
-                        "spindle_id": spindle_id,
-                        "x": current_x,
-                        "y": current_y,
-                    }
-                )
-                current_x += 32.0  # 32mm spacing like reference
-                max_x_extent = max(max_x_extent, current_x - 32.0)  # Track max extent
+                drill_positions.append({
+                    "diameter": diameter,
+                    "spindle_id": spindle_id,
+                    "x": current_x,
+                    "y": current_y,
+                })
+                current_x += 32.0
+                max_x_extent = max(max_x_extent, current_x - 32.0)
+            current_y += 50.0
 
-            current_y += 50.0  # Move to next row
-
-        # Position all text at the end of the longest row
-        text_x_position = max_x_extent + 40.0  # 40mm beyond the last drill hole
-
-        # Generate ALL text labels first (like reference file)
+        # Engrave labels per diameter row
+        text_x_position = max_x_extent + 40.0
         text_id_counter = 1001
         routg_id_counter = 1001
-
         for diameter in sorted_diameters:
-            spindles = tool_config[diameter]
-            tool_count = len(spindles)
+            tool_count = len(tool_config[diameter])
             label_text = f"{diameter}mm - {tool_count}"
+            first_drill = next(pos for pos in drill_positions if pos["diameter"] == diameter)
+            text_x = text_x_position
+            text_y = first_drill["y"]
 
-            # Find the first drill position for this diameter to get the Y position
-            first_drill = next(
-                pos for pos in drill_positions if pos["diameter"] == diameter
-            )
-            text_x = text_x_position  # Use the fixed X position at the end
-            text_y = first_drill[
-                "y"
-            ]  # Position text at same Y as the drill holes for this diameter
-
-            # Generate GEOTEXT
             lines.append("BEGIN MACRO")
             lines.append("\tNAME=GEOTEXT")
             lines.append('\tPARAM,NAME=LAY,VALUE="Layer 0"')
-            lines.append(
-                f'\tPARAM,NAME=ID,VALUE="G{text_id_counter}.{text_id_counter}"'
-            )
+            lines.append(f'\tPARAM,NAME=ID,VALUE="G{text_id_counter}.{text_id_counter}"')
             lines.append("\tPARAM,NAME=SIDE,VALUE=0")
             lines.append('\tPARAM,NAME=CRN,VALUE="2"')
             lines.append("\tPARAM,NAME=RTY,VALUE=2")
@@ -374,16 +350,11 @@ class CIXGenerator:
             lines.append("END MACRO")
             lines.append("")
 
-            # Generate ROUTG - match reference format exactly
             lines.append("BEGIN MACRO")
             lines.append("\tNAME=ROUTG")
             lines.append('\tPARAM,NAME=LAY,VALUE="Layer 0"')
-            lines.append(
-                f'\tPARAM,NAME=ID,VALUE="RG{routg_id_counter}.{routg_id_counter}"'
-            )
-            lines.append(
-                f'\tPARAM,NAME=GID,VALUE="G{text_id_counter}.{text_id_counter}"'
-            )
+            lines.append(f'\tPARAM,NAME=ID,VALUE="RG{routg_id_counter}.{routg_id_counter}"')
+            lines.append(f'\tPARAM,NAME=GID,VALUE="G{text_id_counter}.{text_id_counter}"')
             lines.append('\tPARAM,NAME=SIL,VALUE=""')
             lines.append("\tPARAM,NAME=Z,VALUE=0")
             lines.append("\tPARAM,NAME=DP,VALUE=0.1")
@@ -439,9 +410,7 @@ class CIXGenerator:
             lines.append("\tPARAM,NAME=SWI,VALUE=0")
             lines.append("\tPARAM,NAME=BLW,VALUE=0")
             lines.append("\tPARAM,NAME=TOS,VALUE=1")
-            lines.append(
-                f'\tPARAM,NAME=TNM,VALUE="{self.config.engraving_tool_name.upper()}"'
-            )
+            lines.append(f'\tPARAM,NAME=TNM,VALUE="{self.config.engraving_tool_name.upper()}"')
             lines.append("\tPARAM,NAME=TTP,VALUE=0")
             lines.append('\tPARAM,NAME=SPI,VALUE=""')
             lines.append("\tPARAM,NAME=BFC,VALUE=0")
@@ -479,16 +448,14 @@ class CIXGenerator:
             text_id_counter += 1
             routg_id_counter += 1
 
-        # Now generate ALL drill operations (like reference file)
+        # Drill operations for each planned hole
         drill_id_counter = 2001
-
         for drill_pos in drill_positions:
-            # Generate BG (drill) macro - match reference format exactly
+            # Clamp depth based on diameter-specific limits (e.g., 2mm tool -> max 2mm)
+            effective_dp = self.config.get_effective_drill_depth(drill_pos['diameter'])
             lines.append("BEGIN MACRO")
             lines.append("\tNAME=BG")
-            lines.append(
-                '\tPARAM,NAME=LAY,VALUE="BG"'
-            )  # Note: reference uses "BG", not "Layer 0"
+            lines.append('\tPARAM,NAME=LAY,VALUE="BG"')
             lines.append(f'\tPARAM,NAME=ID,VALUE="P{drill_id_counter}"')
             lines.append("\tPARAM,NAME=SIDE,VALUE=0")
             lines.append('\tPARAM,NAME=CRN,VALUE="2"')
@@ -497,20 +464,15 @@ class CIXGenerator:
             lines.append("\tPARAM,NAME=Z,VALUE=0")
             lines.append("\tPARAM,NAME=AP,VALUE=0")
             lines.append("\tPARAM,NAME=MD,VALUE=0")
-            lines.append(
-                "\tPARAM,NAME=DP,VALUE=2"
-            )  # Reference uses 2, not our config depth
+            lines.append(f"\tPARAM,NAME=DP,VALUE={effective_dp}")
             lines.append('\tPARAM,NAME=TNM,VALUE=""')
             lines.append(f"\tPARAM,NAME=DIA,VALUE={drill_pos['diameter']}")
             lines.append("\tPARAM,NAME=THR,VALUE=0")
             lines.append("\tPARAM,NAME=CKA,VALUE=3")
             lines.append("\tPARAM,NAME=AZ,VALUE=0")
             lines.append("\tPARAM,NAME=AR,VALUE=0")
-            lines.append("\tPARAM,NAME=RTY,VALUE=5")  # Reference uses 5, not -1
-            lines.append("\tPARAM,NAME=OPT,VALUE=1")
-            lines.append(
-                f"\tPARAM,NAME=RSP,VALUE={self.config.drill_speed}"
-            )  # Use configured drill speed
+            lines.append("\tPARAM,NAME=RTY,VALUE=5")
+            lines.append(f"\tPARAM,NAME=RSP,VALUE={self.config.drill_speed}")
             lines.append("\tPARAM,NAME=IOS,VALUE=0")
             lines.append("\tPARAM,NAME=WSP,VALUE=0")
             lines.append("\tPARAM,NAME=DDS,VALUE=0")
@@ -522,7 +484,8 @@ class CIXGenerator:
             lines.append("\tPARAM,NAME=TOS,VALUE=1")
             lines.append("\tPARAM,NAME=VTR,VALUE=0")
             lines.append("\tPARAM,NAME=TTP,VALUE=0")
-            lines.append(f"\tPARAM,NAME=SPI,VALUE=\"{drill_pos['spindle_id']}\"")
+            # SPI expects the spindle name, e.g., 't7' instead of just '7'
+            lines.append(f"\tPARAM,NAME=SPI,VALUE=\"t{drill_pos['spindle_id']}\"")
             lines.append("\tPARAM,NAME=BFC,VALUE=0")
             lines.append("\tPARAM,NAME=PRS,VALUE=0")
             lines.append("\tPARAM,NAME=SHT,VALUE=0")
@@ -535,272 +498,6 @@ class CIXGenerator:
             lines.append("")
 
             drill_id_counter += 1
-
-        return "\n".join(lines)
-        lines.append("\tXCUT=0")
-        lines.append("\tYCUT=0")
-        lines.append("\tJIGTH=0")
-        lines.append("\tCKOP=0")
-        lines.append("\tUNIQUE=0")
-        lines.append('\tMATERIAL="wood"')
-        lines.append('\tPUTLST=""')
-        lines.append("\tOPPWKRS=0")
-        lines.append("\tUNICLAMP=0")
-        lines.append("\tCHKCOLL=0")
-        lines.append("\tWTPIANI=0")
-        lines.append("\tCOLLTOOL=0")
-        lines.append("\tCALCEDTH=0")
-        lines.append("\tENABLELABEL=0")
-        lines.append("\tLOCKWASTE=0")
-        lines.append("\tLOADEDGEOPT=0")
-        lines.append("\tITLTYPE=0")
-        lines.append("\tRUNPAV=0")
-        lines.append("\tFLIPEND=0")
-        lines.append("END MAINDATA")
-        lines.append("")
-
-        # Collect all spindles and create holes cycling through them
-        all_spindles = []
-        diameter_info = {}  # Track which diameter each spindle belongs to
-
-        for diameter, spindles in tool_config.items():
-            for spindle_id in spindles:
-                all_spindles.append(spindle_id)
-                diameter_info[spindle_id] = diameter
-
-        if not all_spindles:
-            raise ValueError("No spindles configured for drilling")
-
-        # Generate holes cycling through all spindles
-        current_x = self.config.start_x
-        current_y = self.config.start_y
-        hole_count = 0
-
-        # Calculate how many holes can fit per row
-        holes_per_row = min(len(all_spindles), self.config.max_holes_per_row)
-
-        # First, generate engraving labels for each diameter group
-        label_y_offset = -30.0  # Position labels above the holes
-        for diameter, spindles in tool_config.items():
-            tool_count = len(spindles)
-            label_text = f"{diameter}mm - {tool_count}"
-
-            # Calculate position for the label (center of the group)
-            group_start_x = (
-                self.config.start_x
-                + (hole_count % holes_per_row) * self.config.x_spacing
-            )
-            group_center_x = (
-                group_start_x + ((tool_count - 1) * self.config.x_spacing) / 2
-            )
-            group_y = (
-                self.config.start_y
-                + (hole_count // holes_per_row) * self.config.y_spacing
-            )
-
-            # Generate GEOTEXT for engraving the label
-            lines.append("BEGIN MACRO")
-            lines.append("\tNAME=GEOTEXT")
-            lines.append('\tPARAM,NAME=LAY,VALUE="Layer 0"')
-            lines.append(
-                f'\tPARAM,NAME=ID,VALUE="G{hole_count + 1001}.{hole_count + 1001}"'
-            )
-            lines.append("\tPARAM,NAME=SIDE,VALUE=0")
-            lines.append('\tPARAM,NAME=CRN,VALUE="2"')
-            lines.append("\tPARAM,NAME=RTY,VALUE=2")
-            lines.append("\tPARAM,NAME=NRP,VALUE=0")
-            lines.append("\tPARAM,NAME=DX,VALUE=0")
-            lines.append("\tPARAM,NAME=DY,VALUE=0")
-            lines.append(f'\tPARAM,NAME=TXT,VALUE="{label_text}"')
-            lines.append(f"\tPARAM,NAME=X,VALUE={group_center_x}")
-            lines.append(f"\tPARAM,NAME=Y,VALUE={group_y + label_y_offset}")
-            lines.append("\tPARAM,NAME=Z,VALUE=0")
-            lines.append("\tPARAM,NAME=ALN,VALUE=1")
-            lines.append("\tPARAM,NAME=ANG,VALUE=0")
-            lines.append("\tPARAM,NAME=VRS,VALUE=0")
-            lines.append("\tPARAM,NAME=ACC,VALUE=0.1")
-            lines.append("\tPARAM,NAME=CIR,VALUE=0")
-            lines.append("\tPARAM,NAME=RDS,VALUE=0")
-            lines.append("\tPARAM,NAME=PST,VALUE=0")
-            lines.append('\tPARAM,NAME=FNT,VALUE="Arial"')
-            lines.append("\tPARAM,NAME=SZE,VALUE=8")
-            lines.append("\tPARAM,NAME=BOL,VALUE=0")
-            lines.append("\tPARAM,NAME=ITL,VALUE=0")
-            lines.append("\tPARAM,NAME=UDL,VALUE=0")
-            lines.append("\tPARAM,NAME=STR,VALUE=0")
-            lines.append("\tPARAM,NAME=WGH,VALUE=1")
-            lines.append("\tPARAM,NAME=CHS,VALUE=0")
-            lines.append("END MACRO")
-            lines.append("")
-
-            # Add ROUTG for engraving the text
-            lines.append("BEGIN MACRO")
-            lines.append("\tNAME=ROUTG")
-            lines.append('\tPARAM,NAME=LAY,VALUE="Layer 0"')
-            lines.append(f'\tPARAM,NAME=ID,VALUE="P{hole_count + 1003}"')
-            lines.append(
-                f'\tPARAM,NAME=GID,VALUE="G{hole_count + 1001}.{hole_count + 1001}"'
-            )
-            lines.append('\tPARAM,NAME=SIL,VALUE=""')
-            lines.append("\tPARAM,NAME=Z,VALUE=0")
-            lines.append("\tPARAM,NAME=DP,VALUE=1")
-            lines.append("\tPARAM,NAME=DIA,VALUE=0")
-            lines.append("\tPARAM,NAME=THR,VALUE=0")
-            lines.append("\tPARAM,NAME=RV,VALUE=0")
-            lines.append("\tPARAM,NAME=CRC,VALUE=0")
-            lines.append("\tPARAM,NAME=CKA,VALUE=3")
-            lines.append("\tPARAM,NAME=AZ,VALUE=0")
-            lines.append("\tPARAM,NAME=AR,VALUE=0")
-            lines.append("\tPARAM,NAME=OPT,VALUE=1")
-            lines.append("\tPARAM,NAME=RSP,VALUE=0")
-            lines.append("\tPARAM,NAME=IOS,VALUE=0")
-            lines.append("\tPARAM,NAME=WSP,VALUE=0")
-            lines.append("\tPARAM,NAME=DSP,VALUE=0")
-            lines.append("\tPARAM,NAME=IMS,VALUE=0")
-            lines.append("\tPARAM,NAME=VTR,VALUE=1")
-            lines.append("\tPARAM,NAME=DVR,VALUE=0")
-            lines.append("\tPARAM,NAME=INCSTP,VALUE=0")
-            lines.append("\tPARAM,NAME=OTR,VALUE=1")
-            lines.append("\tPARAM,NAME=SVR,VALUE=0")
-            lines.append("\tPARAM,NAME=COF,VALUE=0")
-            lines.append("\tPARAM,NAME=DOF,VALUE=0")
-            lines.append("\tPARAM,NAME=TIN,VALUE=0")
-            lines.append("\tPARAM,NAME=CIN,VALUE=1")
-            lines.append("\tPARAM,NAME=AIN,VALUE=90")
-            lines.append("\tPARAM,NAME=GIN,VALUE=0")
-            lines.append("\tPARAM,NAME=TLI,VALUE=0")
-            lines.append("\tPARAM,NAME=TQI,VALUE=0")
-            lines.append("\tPARAM,NAME=TBI,VALUE=0")
-            lines.append("\tPARAM,NAME=DIN,VALUE=0")
-            lines.append("\tPARAM,NAME=TOU,VALUE=0")
-            lines.append("\tPARAM,NAME=COU,VALUE=1")
-            lines.append("\tPARAM,NAME=AOU,VALUE=90")
-            lines.append("\tPARAM,NAME=GOU,VALUE=0")
-            lines.append("\tPARAM,NAME=TBO,VALUE=0")
-            lines.append("\tPARAM,NAME=TLO,VALUE=0")
-            lines.append("\tPARAM,NAME=TQO,VALUE=0")
-            lines.append("\tPARAM,NAME=DOU,VALUE=0")
-            lines.append("\tPARAM,NAME=PRP,VALUE=100")
-            lines.append("\tPARAM,NAME=SDS,VALUE=0")
-            lines.append("\tPARAM,NAME=SDSF,VALUE=2000")
-            lines.append("\tPARAM,NAME=UDT,VALUE=0")
-            lines.append('\tPARAM,NAME=TDT,VALUE=""')
-            lines.append("\tPARAM,NAME=DDT,VALUE=5")
-            lines.append("\tPARAM,NAME=SDT,VALUE=0")
-            lines.append("\tPARAM,NAME=IDT,VALUE=20")
-            lines.append("\tPARAM,NAME=FDT,VALUE=80")
-            lines.append("\tPARAM,NAME=RDT,VALUE=60")
-            lines.append("\tPARAM,NAME=CRR,VALUE=0")
-            lines.append("\tPARAM,NAME=GIP,VALUE=1")
-            lines.append("\tPARAM,NAME=OVM,VALUE=0")
-            lines.append("\tPARAM,NAME=SWI,VALUE=0")
-            lines.append("\tPARAM,NAME=BLW,VALUE=0")
-            lines.append("\tPARAM,NAME=TOS,VALUE=1")
-            lines.append(
-                f'\tPARAM,NAME=TNM,VALUE="{self.config.engraving_tool_name.upper()}"'
-            )
-            lines.append("\tPARAM,NAME=TTP,VALUE=0")
-            lines.append('\tPARAM,NAME=SPI,VALUE=""')
-            lines.append("\tPARAM,NAME=BFC,VALUE=0")
-            lines.append("\tPARAM,NAME=SHT,VALUE=0")
-            lines.append("\tPARAM,NAME=SHP,VALUE=0")
-            lines.append("\tPARAM,NAME=SHD,VALUE=0")
-            lines.append("\tPARAM,NAME=PRS,VALUE=0")
-            lines.append("\tPARAM,NAME=NEBS,VALUE=0")
-            lines.append("\tPARAM,NAME=ETB,VALUE=0")
-            lines.append("\tPARAM,NAME=FXD,VALUE=0")
-            lines.append("\tPARAM,NAME=FXDA,VALUE=0")
-            lines.append("\tPARAM,NAME=KDT,VALUE=0")
-            lines.append("\tPARAM,NAME=EML,VALUE=0")
-            lines.append("\tPARAM,NAME=CKT,VALUE=0")
-            lines.append("\tPARAM,NAME=ETG,VALUE=0")
-            lines.append("\tPARAM,NAME=ETGT,VALUE=0.1")
-            lines.append("\tPARAM,NAME=AJT,VALUE=0")
-            lines.append("\tPARAM,NAME=ION,VALUE=0")
-            lines.append("\tPARAM,NAME=LUBMNZ,VALUE=0")
-            lines.append("\tPARAM,NAME=LPR,VALUE=1")
-            lines.append("\tPARAM,NAME=LNG,VALUE=0")
-            lines.append("\tPARAM,NAME=ZS,VALUE=0")
-            lines.append("\tPARAM,NAME=ZE,VALUE=0")
-            lines.append("\tPARAM,NAME=RDIN,VALUE=0")
-            lines.append("\tPARAM,NAME=COPRES,VALUE=0")
-            lines.append("\tPARAM,NAME=CRT,VALUE=0")
-            lines.append("END MACRO")
-            lines.append("")
-
-            lines.append("BEGIN MACRO")
-            lines.append("\tNAME=ENDPATH")
-            lines.append("END MACRO")
-            lines.append("")
-
-            # Update hole count for next diameter group
-            hole_count += tool_count
-
-        # Reset counters for drill operations
-        current_x = self.config.start_x
-        current_y = self.config.start_y
-        hole_count = 0
-
-        # Now generate drill operations for each spindle
-        for i, spindle_id in enumerate(all_spindles):
-            diameter = diameter_info[spindle_id]
-            tool = self.tool_manager.get_tool(spindle_id)
-
-            # Generate BG (drill) macro
-            lines.append("BEGIN MACRO")
-            lines.append("\tNAME=BG")
-            lines.append('\tPARAM,NAME=LAY,VALUE="Layer 0"')
-            lines.append(f'\tPARAM,NAME=ID,VALUE="P{hole_count + 2001}"')
-            lines.append("\tPARAM,NAME=SIDE,VALUE=0")
-            lines.append('\tPARAM,NAME=CRN,VALUE="2"')
-            lines.append(f"\tPARAM,NAME=X,VALUE={current_x}")
-            lines.append(f"\tPARAM,NAME=Y,VALUE={current_y}")
-            lines.append("\tPARAM,NAME=Z,VALUE=0")
-            lines.append("\tPARAM,NAME=AP,VALUE=0")
-            lines.append("\tPARAM,NAME=MD,VALUE=0")
-            lines.append(f"\tPARAM,NAME=DP,VALUE={self.config.depth}")
-            lines.append('\tPARAM,NAME=TNM,VALUE=""')
-            lines.append(f"\tPARAM,NAME=DIA,VALUE={diameter}")
-            lines.append("\tPARAM,NAME=THR,VALUE=0")
-            lines.append("\tPARAM,NAME=CKA,VALUE=3")
-            lines.append("\tPARAM,NAME=AZ,VALUE=0")
-            lines.append("\tPARAM,NAME=AR,VALUE=0")
-            lines.append("\tPARAM,NAME=RTY,VALUE=-1")
-            lines.append("\tPARAM,NAME=OPT,VALUE=1")
-            lines.append("\tPARAM,NAME=RSP,VALUE=0")
-            lines.append("\tPARAM,NAME=IOS,VALUE=0")
-            lines.append("\tPARAM,NAME=WSP,VALUE=0")
-            lines.append("\tPARAM,NAME=DDS,VALUE=0")
-            lines.append("\tPARAM,NAME=DSP,VALUE=0")
-            lines.append("\tPARAM,NAME=RMD,VALUE=1")
-            lines.append("\tPARAM,NAME=DQT,VALUE=0")
-            lines.append("\tPARAM,NAME=ERDW,VALUE=0")
-            lines.append("\tPARAM,NAME=DFW,VALUE=0")
-            lines.append("\tPARAM,NAME=TOS,VALUE=1")
-            lines.append("\tPARAM,NAME=VTR,VALUE=0")
-            lines.append("\tPARAM,NAME=TTP,VALUE=0")
-            lines.append(f'\tPARAM,NAME=SPI,VALUE="{spindle_id}"')
-            lines.append("\tPARAM,NAME=BFC,VALUE=0")
-            lines.append("\tPARAM,NAME=PRS,VALUE=0")
-            lines.append("\tPARAM,NAME=SHT,VALUE=0")
-            lines.append("\tPARAM,NAME=SHP,VALUE=0")
-            lines.append("\tPARAM,NAME=SHD,VALUE=0")
-            lines.append("\tPARAM,NAME=COPRES,VALUE=0")
-            lines.append("\tPARAM,NAME=AJT,VALUE=0")
-            lines.append("\tPARAM,NAME=ION,VALUE=0")
-            lines.append("END MACRO")
-            lines.append("")
-
-            hole_count += 1
-
-            # Move to next position
-            if hole_count % holes_per_row == 0:
-                # Move to next row
-                current_x = self.config.start_x
-                current_y += self.config.y_spacing
-            else:
-                # Move to next column
-                current_x += self.config.x_spacing
 
         return "\n".join(lines)
 
