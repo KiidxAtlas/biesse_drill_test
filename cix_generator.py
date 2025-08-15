@@ -357,7 +357,8 @@ class CIXGenerator:
             lines.append(f'\tPARAM,NAME=GID,VALUE="G{text_id_counter}.{text_id_counter}"')
             lines.append('\tPARAM,NAME=SIL,VALUE=""')
             lines.append("\tPARAM,NAME=Z,VALUE=0")
-            lines.append("\tPARAM,NAME=DP,VALUE=0.1")
+            # Use configured engraving depth
+            lines.append(f"\tPARAM,NAME=DP,VALUE={self.config.engraving_depth}")
             lines.append("\tPARAM,NAME=DIA,VALUE=0")
             lines.append("\tPARAM,NAME=THR,VALUE=0")
             lines.append("\tPARAM,NAME=RV,VALUE=0")

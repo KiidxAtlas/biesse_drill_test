@@ -21,10 +21,10 @@ class DrillTestConfig:
         self.y_spacing = 50.0
         self.depth = 19
         self.panel_thickness = 19.0  # LPZ in CIX (mm)
-        self.output_file = "R3_Drill_Test.cix"
+        self.output_file = "R2_Drill_Test.cix"
 
         # Tool configuration file path
-        self.tool_xml_file = "r3_spindle_tooling.xml"  # Default to R1 tools
+        self.tool_xml_file = "r2_spindle_tooling.xml"  # Default to R1 tools
 
         # Test parameters
         self.test_all_tools = False  # If True, test all available tools
@@ -47,7 +47,7 @@ class DrillTestConfig:
 
         # Machining parameters
         self.engraving_tool_name = "V45D22MM"  # Tool name for engraving operations
-        self.engraving_depth = 0.2  # Engraving depth (mm)
+        self.engraving_depth = 0.5  # Engraving depth (mm)
         self.drill_speed = 0  # RPM for drilling operations
         self.engraving_speed = 0  # RPM for engraving operations
         self.feed_rate = 0  # Feed rate (mm/min)

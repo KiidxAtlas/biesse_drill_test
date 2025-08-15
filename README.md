@@ -2,6 +2,11 @@
 
 A Python-based CIX file generator for creating automated drill test programs for Biesse Rover CNC machines. This tool reads XML tool configuration files and generates comprehensive drill test programs with engraving labels showing diameter and tool count information.
 
+## Quick links
+
+- Python class definitions — official docs: https://docs.python.org/3/reference/compound_stmts.html#class-definitions
+- If links aren’t clickable, open Markdown Preview (View > Open Preview or Cmd+Shift+V) where links render as blue, clickable text.
+
 ## Features
 
 - 🔧 **XML Tool Parsing**: Reads Biesse tool XML files to extract spindle and diameter information
