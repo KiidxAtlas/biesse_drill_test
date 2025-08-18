@@ -6,6 +6,7 @@ Generates drill test programs by reading tool XML files and configuration settin
 import os
 import xml.etree.ElementTree as ET
 from typing import Dict, List, Optional
+import glob
 
 from config import DrillTestConfig
 
@@ -544,3 +545,36 @@ def generate_drill_test(config: DrillTestConfig) -> str:
     """
     generator = CIXGenerator(config)
     return generator.generate_cix()
+
+
+def generate_all_cix_from_tooling_folder(config: DrillTestConfig, tooling_folder: str = "tooling") -> None:
+    """
+    Generate CIX files for all XML files in the specified tooling folder.
+
+    Args:
+        config: The DrillTestConfig object to use for generation.
+        tooling_folder: The folder containing XML files.
+    """
+    if not os.path.exists(tooling_folder):
+        print(f"❌ Tooling folder not found: {tooling_folder}")
+        return
+
+    # Find all XML files in the tooling folder
+    xml_files = glob.glob(os.path.join(tooling_folder, "*.xml"))
+
+    if not xml_files:
+        print(f"❌ No XML files found in tooling folder: {tooling_folder}")
+        return
+
+    for xml_file in xml_files:
+        print(f"🔄 Processing XML file: {xml_file}")
+        config.set_tool_xml_file(xml_file)
+
+        # Create a CIXGenerator instance and generate the CIX file
+        generator = CIXGenerator(config)
+        try:
+            generator.generate_cix()
+        except Exception as e:
+            print(f"❌ Failed to generate CIX for {xml_file}: {e}")
+
+    print("✅ All CIX files generated.")

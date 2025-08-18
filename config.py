@@ -27,7 +27,7 @@ class DrillTestConfig:
         self.tool_xml_file = "r2_spindle_tooling.xml"  # Default to R1 tools
 
         # Test parameters
-        self.test_all_tools = False  # If True, test all available tools
+        self.test_all_tools = True  # If True, test all available tools
         self.custom_tool_config = None  # Custom diameter to spindle mapping
 
         # Safety parameters
@@ -232,24 +232,27 @@ class DrillTestConfig:
 
     def get_output_filename(self) -> str:
         """
-        Get the final output filename with timestamp if enabled.
+        Get the final output filename based on the XML file name, ensuring it is saved in the 'output' folder.
 
         Returns:
             Final filename with or without timestamp
         """
+        # Extract base name from the XML file
+        base_name = os.path.splitext(os.path.basename(self.tool_xml_file))[0]
+
         if not self.auto_timestamp:
-            return self.output_file
-
-        import datetime
-
-        timestamp = datetime.datetime.now().strftime(self.timestamp_format)
-
-        # Insert timestamp before file extension
-        if "." in self.output_file:
-            name, ext = self.output_file.rsplit(".", 1)
-            return f"{name}_{timestamp}.{ext}"
+            filename = f"{base_name}.cix"
         else:
-            return f"{self.output_file}_{timestamp}"
+            import datetime
+
+            timestamp = datetime.datetime.now().strftime(self.timestamp_format)
+            filename = f"{base_name}_{timestamp}.cix"
+
+        # Ensure the 'output' directory exists
+        output_dir = "output"
+        os.makedirs(output_dir, exist_ok=True)
+
+        return os.path.join(output_dir, filename)
 
     def validate_config(self) -> List[str]:
         """
