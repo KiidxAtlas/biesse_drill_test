@@ -458,7 +458,7 @@ class CIXGenerator:
             lines.append("BEGIN MACRO")
             lines.append("\tNAME=BG")
             lines.append('\tPARAM,NAME=LAY,VALUE="BG"')
-            lines.append(f'\tPARAM,NAME=ID,VALUE="P{drill_id_counter}"')
+            lines.append(f'\tPARAM,NAME=ID,VALUE="T{drill_pos['spindle_id']}"')
             lines.append("\tPARAM,NAME=SIDE,VALUE=0")
             lines.append('\tPARAM,NAME=CRN,VALUE="2"')
             lines.append(f"\tPARAM,NAME=X,VALUE={drill_pos['x']}")
